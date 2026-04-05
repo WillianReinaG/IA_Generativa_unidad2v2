@@ -33,6 +33,8 @@ Edita `.env` y define `OPENAI_API_KEY`. Opcional: `OPENAI_MODEL=gpt-4o-mini` par
 | `requirements.txt` | Dependencias. |
 | `.env.example` | Plantilla de variables de entorno (no incluye secretos). |
 | `docs/arquitectura-rag.md` | Notas de arquitectura RAG y 80 % / 20 % humano. |
+| `docs/FASE1_seleccion_modelo.md` | Fase 1: modelo usado, enfoque híbrido, arquitectura y herramientas del repo. |
+| `docs/FASE2_fortalezas_limitaciones_eticos.md` | Fase 2: fortalezas, limitaciones y riesgos éticos (alcance del prototipo). |
 
 ## Uso de la CLI
 
