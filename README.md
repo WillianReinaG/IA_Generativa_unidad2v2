@@ -56,8 +56,10 @@ python main.py repl --mode order
 
 En `repl`, cada sesión tiene un `session_id` (UUID) y se reenvía a OpenAI el **historial** de turnos `user` / `assistant` (últimos 20 mensajes).
 
-- Si el texto del cliente coincide con una **heurística de escalamiento** (p. ej. “cobraron dos veces”, “no puedo entrar”, “hablar con persona”) **o** estás en `--mode escalate` y el mensaje tiene al menos **30 caracteres**, se crea **un ticket** en `data/tickets.json` con id tipo `TKT-XXXXXXXX`.
-- Ese id se inyecta en el **system prompt** (“Estado del sistema: ticket activo…”) para que el modelo no invente otro número.
+- Se crea ticket si el mensaje encaja en la **heurística de quejas / atención humana** (palabras como “queja”, “reclamo”, “no me llegó”, “hablar con alguien”, “fraude”, etc.; ver `ecomarket/tickets.py`) **o**, en `--mode escalate`, si el mensaje tiene **≥ 8 caracteres** y no es un saludo trivial (“hola”, “gracias”, …).
+- Si ya había un ticket y llega **otra queja** con heurística positiva, se registra un **ticket nuevo** y el contexto pasa a ese id. Las preguntas solo por el número de ticket **no** abren otro ticket.
+- En consola verás líneas `(Sistema) Ticket registrado: …` al crear uno.
+- El id activo se inyecta en el **system prompt** (“Estado del sistema: ticket activo…”) para que el modelo no invente otro número.
 - Prueba típica (con API key configurada):
 
 ```powershell

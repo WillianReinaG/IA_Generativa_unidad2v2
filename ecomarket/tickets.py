@@ -60,7 +60,7 @@ def list_tickets_for_session(session_id: str) -> list[dict[str, Any]]:
 
 
 def needs_escalation_heuristic(text: str) -> bool:
-    """Detección simple por palabras clave (sin llamada al modelo)."""
+    """Detección simple por palabras clave (sin llamada al modelo). Casos de atención humana / quejas."""
     s = (text or "").lower()
     if not s.strip():
         return False
@@ -69,7 +69,10 @@ def needs_escalation_heuristic(text: str) -> bool:
         "cobraron doble",
         "doble cobro",
         "cobro duplicado",
-        "me cobraron dos",
+        "me cobraron",
+        "cobro indebido",
+        "cobro extra",
+        "cargo no reconocido",
         "no puedo entrar",
         "no entro a mi cuenta",
         "no puedo acceder",
@@ -77,10 +80,142 @@ def needs_escalation_heuristic(text: str) -> bool:
         "cuenta bloqueada",
         "hablar con persona",
         "hablar con un humano",
+        "hablar con alguien",
+        "ponerme con",
+        "comunicarme con un",
         "asesor humano",
         "operador",
         "agente humano",
+        "atención humana",
+        "atencion humana",
         "esto es un robo",
         "fraude",
+        "estafa",
+        "me estafaron",
+        "queja",
+        "reclamo",
+        "reclamación",
+        "reclamacion",
+        "mal servicio",
+        "pesimo servicio",
+        "pésimo servicio",
+        "defectuoso",
+        "defectuosa",
+        "dañado",
+        "danado",
+        "roto",
+        "no me llegó",
+        "no me llego",
+        "no llegó mi pedido",
+        "no llego mi pedido",
+        "pedido equivocado",
+        "envío incorrecto",
+        "envio incorrecto",
+        "paquete perdido",
+        "supervisor",
+        "gerente",
+        "gerencia",
+        "indemnización",
+        "indemnizacion",
+        "abuso",
+        "demanda",
+        "abogado",
+        "no responden",
+        "nadie me contesta",
+        "sin respuesta",
+        "necesito ayuda urgente",
+        "ayuda urgente",
+        "muy urgente",
+        "cancelar mi cuenta",
+        "quiero cancelar",
+        "devolución rechazada",
+        "devolucion rechazada",
+        "no me quieren devolver",
+        "mal estado",
+        "producto vencido",
+        "error en el cobro",
+        "error en mi pedido",
+        "muy molesto",
+        "muy molesta",
+        "indignado",
+        "indignada",
+        "terrible experiencia",
+        "inaceptable",
     )
     return any(n in s for n in needles)
+
+
+def is_trivial_repl_greeting(text: str) -> bool:
+    """Saludos o cierres muy cortos que no deben abrir ticket en modo escalate."""
+    t = (text or "").strip().lower()
+    if len(t) < 2:
+        return True
+    greetings = {
+        "hola",
+        "hi",
+        "hey",
+        "buenos días",
+        "buenos dias",
+        "buenas tardes",
+        "buenas noches",
+        "gracias",
+        "thanks",
+        "thank you",
+        "ok",
+        "okay",
+        "vale",
+        "sí",
+        "si",
+        "no",
+        "bye",
+        "adiós",
+        "adios",
+        "chao",
+        "salir",
+        "exit",
+        "quit",
+    }
+    return t in greetings
+
+
+def is_followup_ticket_question_only(text: str) -> bool:
+    """
+    True si el mensaje parece solo una consulta por folio/ticket, sin nueva queja.
+    Evita crear un ticket duplicado al preguntar «¿cuál es mi número de ticket?».
+    """
+    if needs_escalation_heuristic(text):
+        return False
+    s = (text or "").lower()
+    mentions_ref = any(
+        w in s
+        for w in (
+            "ticket",
+            "folio",
+            "número de caso",
+            "numero de caso",
+            "número del caso",
+            "numero del caso",
+            "referencia",
+        )
+    )
+    asks = any(
+        w in s
+        for w in (
+            "cuál",
+            "cual",
+            "qué",
+            "que ",
+            "dónde",
+            "donde",
+            "dame ",
+            "dime ",
+            "pasame",
+            "pásame",
+            "necesito el",
+            "necesito mi",
+            "saber el",
+            "saber mi",
+            "mostrar",
+        )
+    )
+    return mentions_ref and asks

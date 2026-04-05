@@ -30,7 +30,12 @@ from ecomarket.messages import (
     build_return_messages,
 )
 from ecomarket.openai_chat import complete_chat, complete_chat_messages
-from ecomarket.tickets import create_ticket, needs_escalation_heuristic
+from ecomarket.tickets import (
+    create_ticket,
+    is_followup_ticket_question_only,
+    is_trivial_repl_greeting,
+    needs_escalation_heuristic,
+)
 
 
 def _general(cfg: dict) -> tuple[str, float]:
@@ -151,12 +156,25 @@ def cmd_repl(args: argparse.Namespace, cfg: dict) -> int:
         if not line or line.lower() in ("salir", "exit", "quit"):
             return 0
 
-        # Ticket: heurística de escalamiento, o modo escalate con mensaje sustancial (evita "hola" vacío).
-        qualify_ticket = needs_escalation_heuristic(line) or (
-            mode == "escalate" and len(line.strip()) >= 30
-        )
-        if qualify_ticket and active_ticket is None:
-            active_ticket = create_ticket(session_id, line)
+        # Ticket: heurística de queja / atención humana, o cualquier mensaje no trivial en modo escalate.
+        # Las preguntas solo por número de ticket no abren otro ticket (ver is_followup_ticket_question_only).
+        if is_followup_ticket_question_only(line):
+            qualify_ticket = False
+        elif needs_escalation_heuristic(line):
+            qualify_ticket = True
+        elif mode == "escalate" and len(line.strip()) >= 8 and not is_trivial_repl_greeting(line):
+            qualify_ticket = True
+        else:
+            qualify_ticket = False
+
+        if qualify_ticket:
+            if active_ticket is None:
+                active_ticket = create_ticket(session_id, line)
+                print(f"(Sistema) Ticket registrado: {active_ticket['id']}\n", flush=True)
+            elif needs_escalation_heuristic(line):
+                # Nueva queja con señales claras → otro ticket (útil en pruebas y casos reales distintos).
+                active_ticket = create_ticket(session_id, line)
+                print(f"(Sistema) Nuevo ticket (nueva queja): {active_ticket['id']}\n", flush=True)
 
         if mode == "order":
             base_system, _dupe = build_order_messages(p, line)
