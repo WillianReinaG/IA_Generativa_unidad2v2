@@ -7,6 +7,7 @@ Ejemplos:
   python main.py escalate -m "Me cobraron doble y no entro a mi cuenta"
   python main.py demo
   python main.py repl --mode order
+  python main.py repl --mode escalate   # memoria + tickets en data/tickets.json
   python main.py order -m "Hola" --dry-run   # --dry-run va al final del subcomando order
 """
 
@@ -15,13 +16,21 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import uuid
 from pathlib import Path
 
 from dotenv import load_dotenv
 
 from ecomarket.load_settings import default_settings_path, load_settings
-from ecomarket.messages import build_escalation_messages, build_order_messages, build_return_messages
-from ecomarket.openai_chat import complete_chat
+from ecomarket.messages import (
+    append_repl_context,
+    build_escalation_messages,
+    build_escalation_system_repl,
+    build_order_messages,
+    build_return_messages,
+)
+from ecomarket.openai_chat import complete_chat, complete_chat_messages
+from ecomarket.tickets import create_ticket, needs_escalation_heuristic
 
 
 def _general(cfg: dict) -> tuple[str, float]:
@@ -118,13 +127,21 @@ def cmd_demo(args: argparse.Namespace, cfg: dict) -> int:
     return 0
 
 
+MAX_REPL_HISTORY_MESSAGES = 20  # pares user/assistant recientes (límite aproximado de contexto)
+
+
 def cmd_repl(args: argparse.Namespace, cfg: dict) -> int:
     p = _prompts(cfg)
     mode = args.mode
     model, temperature = _general(cfg)
     if args.model:
         model = args.model
-    print(f"EcoMarket REPL ({mode}) — modelo {model}. Escribe 'salir' para terminar.\n")
+    session_id = str(uuid.uuid4())
+    history: list[dict] = []
+    active_ticket: dict | None = None
+
+    print(f"EcoMarket REPL ({mode}) — modelo {model}. Sesión: {session_id[:8]}…")
+    print("Memoria de conversación activa. Escribe 'salir' para terminar.\n")
     while True:
         try:
             line = input("Tú: ").strip()
@@ -133,17 +150,47 @@ def cmd_repl(args: argparse.Namespace, cfg: dict) -> int:
             return 0
         if not line or line.lower() in ("salir", "exit", "quit"):
             return 0
+
+        # Ticket: heurística de escalamiento, o modo escalate con mensaje sustancial (evita "hola" vacío).
+        qualify_ticket = needs_escalation_heuristic(line) or (
+            mode == "escalate" and len(line.strip()) >= 30
+        )
+        if qualify_ticket and active_ticket is None:
+            active_ticket = create_ticket(session_id, line)
+
         if mode == "order":
-            system, user = build_order_messages(p, line)
+            base_system, _dupe = build_order_messages(p, line)
+            system = append_repl_context(base_system, ticket=active_ticket)
+            user_content = line
         elif mode == "return":
-            system, user = build_return_messages(p, line)
+            base_system, _dupe = build_return_messages(p, line)
+            system = append_repl_context(base_system, ticket=active_ticket)
+            user_content = line
         else:
-            system, user = build_escalation_messages(p, line)
+            system = build_escalation_system_repl(p, ticket=active_ticket)
+            user_content = line
+
+        messages: list[dict] = [
+            {"role": "system", "content": system},
+            *history,
+            {"role": "user", "content": user_content},
+        ]
+
         try:
-            out = complete_chat(system, user, model=model, temperature=temperature)
+            out = complete_chat_messages(messages, model=model, temperature=temperature)
         except Exception as e:
             print(e, file=sys.stderr)
             continue
+
+        history.extend(
+            [
+                {"role": "user", "content": user_content},
+                {"role": "assistant", "content": out},
+            ]
+        )
+        if len(history) > MAX_REPL_HISTORY_MESSAGES:
+            history = history[-MAX_REPL_HISTORY_MESSAGES:]
+
         print(f"Asistente: {out}\n")
 
 

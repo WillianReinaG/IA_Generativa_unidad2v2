@@ -1,5 +1,4 @@
 # EcoMarket — prompts de atención al cliente
-# Estructura inspirada en: https://github.com/avila196/prompt-engineering-sample/blob/main/settings-final.toml
 
 [general]
 chat_models = ["gpt-4o-mini", "gpt-4o", "gpt-4"]
@@ -186,6 +185,14 @@ escalation_instruction_prompt = """
 Si el mensaje en >>>>>CONTENT<<<<< implica queja grave, riesgo de seguridad, fraude, datos personales sensibles,
 problema técnico que impide usar la cuenta, o el usuario pide explícitamente hablar con una persona,
 responde con un mensaje breve empático y ofrece crear ticket / cola de agente. No resuelvas el caso complejo tú solo.
+"""
+
+escalation_instruction_multiturn = """
+La conversación previa aparece en el historial (mensajes de usuario y asistente). El último mensaje del usuario es la consulta actual.
+Si el contenido implica queja grave, riesgo de seguridad, fraude, datos personales sensibles, problema técnico que impide usar la cuenta,
+o el usuario pide hablar con una persona, responde con brevedad y empatía y orienta a verificación con un asesor humano.
+Si el bloque "Estado del sistema" incluye un ticket, puedes mencionar ese número al cliente exactamente como aparece; no inventes otro ID.
+No pidas contraseñas por chat ni resuelvas casos complejos sin escalamiento.
 """
 
 escalation_role_prompt = """Eres un asistente de primer contacto de EcoMarket orientado a seguridad y buen servicio."""
