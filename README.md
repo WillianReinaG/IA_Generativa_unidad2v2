@@ -77,4 +77,12 @@ Opciones globales: `--settings`, `--model` (van **antes** del subcomando, p. ej.
 
 ## Autor / curso
 
+Juan Manuel Hurtado Angulo  
+Manuel Alberto González González  
+Willian Alberto Reina García  
+
+## Docente / curso
+
+MSc David Miguel Ávila Crúz  
+
 Entrega — MIAA · IA Generativa.
