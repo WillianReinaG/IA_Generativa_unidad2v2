@@ -1,110 +1,126 @@
-# Fase 1 — Selección y justificación del modelo (EcoMarket)
+# FASE 1: Selección y Justificación del Modelo de IA
 
-## Aviso
+## 1. Selección del modelo de IA generativa
 
-Los nombres de modelo (**GPT-4o**, **GPT-4o mini**, **GPT-4**) se citan **solo en coherencia con la configuración real de este repositorio** (`settings-final.toml` y, si aplica, `OPENAI_MODEL` en `.env`). No implican recomendación comercial ni exclusión de otros proveedores.
+Para abordar el problema de optimización del servicio de atención al cliente en la empresa EcoMarket, se propone la implementación de una **arquitectura híbrida basada en un Modelo de Lenguaje Grande (LLM) integrado con un sistema de Generación Aumentada por Recuperación (RAG)**.
 
----
+El modelo generativo puede corresponder a alternativas como **GPT (OpenAI)**, **LLaMA**, o **Mistral**, mientras que el componente RAG permitirá conectar el modelo con fuentes de información internas de la empresa, tales como:
 
-## ¿Qué modelo de IA generativa usa este proyecto?
+* Base de datos de pedidos
+* Catálogo de productos
+* Políticas de devoluciones
+* Historial de interacciones
 
-| Dónde se define | Valor en el repositorio |
-|-----------------|-------------------------|
-| Modelo por defecto | **`gpt-4o`** (`[general]` en `settings-final.toml`) |
-| Modelos listados como alternativas en configuración | **`gpt-4o-mini`**, **`gpt-4o`**, **`gpt-4`** (`chat_models` en el mismo archivo) |
-| Sobrescrito en tiempo de ejecución | Variable de entorno **`OPENAI_MODEL`** (p. ej. `gpt-4o-mini`), leída en `main.py` vía `_general()` |
-
-En conjunto, el núcleo es un **modelo de lenguaje grande (LLM)** accesible por la **API de Chat Completions de OpenAI**. No hay en este repo **fine-tuning** propio ni un segundo modelo entrenado aparte: el comportamiento se controla con **prompts** y con **texto de contexto inyectado**.
+Esta combinación permite aprovechar la capacidad conversacional del LLM y, al mismo tiempo, garantizar respuestas basadas en información real y actualizada.
 
 ---
 
-## ¿Qué tipo de solución es la más adecuada *en este trabajo*?
+## 2. Justificación de la elección del modelo
 
-Es una solución **híbrida** en el sentido siguiente:
+La selección de una arquitectura LLM + RAG responde a las necesidades específicas del caso de estudio, considerando los siguientes factores:
 
-1. **LLM (GPT-4o u otro de la lista anterior, según configuración)**  
-   Genera el texto de respuesta, sigue el rol y las instrucciones, y mantiene coherencia conversacional (especialmente en `repl` con historial).
+### 2.1 Precisión de la información
 
-2. **Conocimiento factual acotado que no viene “de memoria” del modelo**  
-   - **Pedidos y política de devoluciones:** fragmentos sustituidos en el prompt desde `settings-final.toml` (`orders_database_document`, `return_policy_document`) mediante `ecomarket/messages.py`.  
-   - **Tickets:** identificadores y metadatos generados y guardados por el programa en `data/tickets.json` (`ecomarket/tickets.py`) e **inyectados** en el mensaje de sistema para que el modelo cite el mismo número.
+El sistema RAG permite que el modelo consulte información externa en tiempo real, evitando la generación de respuestas incorrectas o alucinadas. Esto es especialmente crítico en consultas relacionadas con:
 
-Esa combinación (**LLM + contexto externo fijado por el sistema**) es el híbrido que implementa el repositorio: el modelo **redacta**; los **datos de prueba y tickets** los aporta el código y los archivos locales.
+* Estado de pedidos
+* Información de envíos
+* Características de productos
 
----
-
-## ¿Por qué este enfoque y no otro *solo con LLM* o *solo reglas*?
-
-| Necesidad | Cómo lo cubre *este* proyecto |
-|-----------|--------------------------------|
-| **Precisión en pedidos y políticas** | Las instrucciones obligan a usar **solo** el texto del registro de pedidos o la política incrustada en el prompt. El LLM no debe inventar estados ni normas que no estén ahí. |
-| **Fluidez y tono** | El LLM reformula en español, responde a variaciones del cliente y mantiene el hilo en el `repl` (historial `user`/`assistant`). |
-| **Solo reglas / sin LLM** | No está implementado: el repo apuesta por lenguaje natural con control vía prompts. |
-| **Fine-tuned LLM propio** | No está en el repositorio: no hay dataset de entrenamiento ni pipeline de afinado; la “personalización” es por **prompt engineering** y **contexto inyectado**. |
+A diferencia de un LLM tradicional, que depende únicamente de su entrenamiento previo, RAG garantiza respuestas fundamentadas en datos reales de la empresa.
 
 ---
 
-## ¿Cuál es la arquitectura *tal como está en el repositorio*?
+### 2.2 Escalabilidad
 
-```
-Usuario → main.py (CLI: order | return | escalate | demo | repl)
-              │
-              ├─ load_settings → settings-final.toml ([general] + [prompts])
-              ├─ messages.py → arma system/user (placeholders → documentos del TOML)
-              ├─ tickets.py → lectura/escritura data/tickets.json (REPL + heurística)
-              └─ openai_chat.py → API OpenAI (chat.completions)
-                        │
-                        ▼
-                 Respuesta al usuario
-```
+Dado que el 80% de las consultas son repetitivas, la solución propuesta permite automatizar gran parte del flujo de atención al cliente, reduciendo significativamente la carga operativa del equipo humano.
 
-- **Base de conocimiento de prueba:** vive en **`settings-final.toml`** (no hay conexión a una BD SQL en este código).  
-- **Persistencia de tickets:** **`data/tickets.json`**, creada en tiempo de ejecución.  
-- **Integración con catálogo/envíos reales de EcoMarket:** **no está implementada** en este repositorio; el conocimiento operativo simulado está en `settings-final.toml` y los tickets en `data/tickets.json`.
+La arquitectura es altamente escalable, ya que:
+
+* Puede atender múltiples usuarios simultáneamente
+* No requiere incremento proporcional de personal
+* Se adapta al crecimiento del negocio
 
 ---
 
-## Herramientas que incluye el repositorio: para qué sirven y por qué se eligieron
+### 2.3 Costo y eficiencia operativa
 
-| Herramienta / componente | Para qué ayuda |
-|--------------------------|----------------|
-| **Python 3.10+** | Lenguaje del CLI y del paquete `ecomarket`. |
-| **`openai` (SDK)** | Llamadas estándar a la API de chat; evita implementar HTTP a mano. |
-| **`python-dotenv`** | Carga `OPENAI_API_KEY` y `OPENAI_MODEL` desde `.env` sin hardcodear secretos. |
-| **`tomllib` / `tomli`** | Leer `settings-final.toml` (modelo, temperatura, textos largos de prompts y KB de prueba). |
-| **`settings-final.toml`** | Un solo lugar para modelo (`gpt-4o` por defecto), `temperature = 0` (respuestas más estables) y textos de política/pedidos. |
-| **`main.py`** | Orquesta modos de prueba y el `repl` con memoria y reglas de ticket. |
-| **`ecomarket/messages.py`** | Sustituye marcadores del TOML por el documento correcto y añade memoria/ticket al system en REPL. |
-| **`ecomarket/tickets.py`** | Crea y lista tickets en disco; heurística de “queja” alineada con escalamiento. |
-| **`ecomarket/openai_chat.py`** | Centraliza la llamada al modelo (`complete_chat` / `complete_chat_messages`). |
+La implementación de un sistema basado en RAG reduce costos asociados a:
+
+* Personal de atención
+* Tiempos de respuesta prolongados
+* Retrabajo en consultas repetitivas
+
+Además, permite optimizar recursos al delegar tareas simples a la IA y reservar la intervención humana para casos complejos.
 
 ---
 
-## Justificación breve (costo, escalabilidad, integración, calidad) *aplicada a lo construido*
+### 2.4 Facilidad de integración
 
-| Criterio | Relación con este repo |
-|----------|-------------------------|
-| **Costo** | Pago por uso de la API; puedes bajar coste usando **`OPENAI_MODEL=gpt-4o-mini`** sin cambiar el resto del código. |
-| **Escalabilidad** | Cada comando o turno del `repl` implica una llamada a la API; el volumen depende de cuotas del proveedor y del tamaño del contexto enviado. |
-| **Integración** | Archivo TOML + JSON local + variables de entorno: poca fricción para reproducir en otra máquina con venv y `pip install -r requirements.txt`. |
-| **Calidad de respuesta** | `temperature = 0` y reglas explícitas en prompts reducen variación; la calidad factual del pedido depende del texto del TOML y de no mezclar datos erróneos ahí. |
+La arquitectura propuesta puede integrarse fácilmente con los sistemas existentes de EcoMarket, tales como:
 
----
+* Bases de datos relacionales
+* APIs de pedidos y logística
+* Sistemas CRM
 
-## Preguntas de la Fase 1 (resumen de respuestas)
-
-1. **¿Qué tipo de modelo es el más adecuado?**  
-   **LLM de propósito general vía API** (en este proyecto: familia configurada en `settings-final.toml`, por defecto **GPT-4o**), en esquema **híbrido** con **texto de contexto inyectado** (TOML + tickets en JSON).
-
-2. **¿Por qué este modelo y no otro?**  
-   Para **precisión** en pedidos/políticas se apoya en **documentos en el prompt**, no en suposiciones del modelo; para **fluidez** y diálogo multi-turno se usa la capacidad del LLM. No se usa otro paradigma (p. ej. solo reglas) porque el código entregado está centrado en **Chat Completions**.
-
-3. **¿Arquitectura propuesta?**  
-   La descrita arriba: **CLI Python → TOML + (opcional) tickets.json → API OpenAI**. No hay BD de productos ni envíos conectada en el código actual.
-
-4. **¿Propósito general o afinado con datos de empresa?**  
-   **Propósito general** del proveedor, **guiado** por prompts y por los textos de empresa que tú defines en `settings-final.toml` y por el estado generado en `tickets.py`. **No** hay fine-tuning en el repo.
+El uso de frameworks como **LangChain o LlamaIndex** facilita la conexión entre el modelo y las fuentes de datos, reduciendo la complejidad de implementación.
 
 ---
 
-*Proyecto: IA Generativa — Unidad 2 — EcoMarket (`entrega`).*
+### 2.5 Calidad de la respuesta y experiencia del usuario
+
+El uso de un LLM permite generar respuestas:
+
+* Naturales y conversacionales
+* Contextualizadas
+* Personalizadas
+
+Al combinarse con RAG, estas respuestas además son:
+
+* Precisas
+* Actualizadas
+* Basadas en evidencia
+
+Esto mejora significativamente la experiencia del cliente, reduciendo tiempos de espera (de 24 horas a segundos) y aumentando la satisfacción general.
+
+---
+
+## 3. Arquitectura propuesta
+
+La solución se basa en una arquitectura RAG compuesta por los siguientes elementos:
+
+1. **Usuario (cliente):** realiza la consulta a través de chat, web o aplicación.
+2. **Interfaz conversacional:** chatbot que recibe la solicitud.
+3. **Modelo LLM:** interpreta la intención y genera la respuesta.
+4. **Sistema RAG:**
+
+   * Motor de recuperación (retriever)
+   * Base de datos vectorial (embeddings)
+   * Acceso a fuentes de datos empresariales
+5. **Base de conocimiento:** contiene información estructurada y no estructurada de la empresa.
+6. **Respuesta final:** generada por el modelo con contexto real.
+
+Esta arquitectura permite que el sistema primero recupere información relevante y luego genere una respuesta contextualizada y confiable.
+
+---
+
+## 4. Tipo de modelo y enfoque
+
+La solución propuesta corresponde a un **modelo híbrido**, que combina:
+
+* Un modelo de propósito general (LLM preentrenado)
+* Un sistema de recuperación de información (RAG)
+
+Este enfoque es superior a un modelo completamente afinado (fine-tuned) en este contexto, ya que:
+
+* Evita la necesidad de reentrenamiento constante
+* Permite trabajar con información dinámica
+* Reduce costos de mantenimiento
+
+---
+
+## 5. Conclusión
+
+La elección de una arquitectura basada en LLM + RAG representa la solución más adecuada para el problema planteado en EcoMarket, ya que permite equilibrar precisión, escalabilidad, costo y calidad de servicio.
+
+Esta propuesta no solo optimiza el tiempo de respuesta y la eficiencia operativa, sino que también mejora la experiencia del cliente al ofrecer respuestas rápidas, confiables y contextualizadas, alineadas con la información real de la empresa.
