@@ -1,97 +1,160 @@
-# Fase 2 — Fortalezas, limitaciones y riesgos éticos (EcoMarket)
+# FASE 2: Evaluación de Fortalezas, Limitaciones y Riesgos Éticos
 
-Este documento se limita a lo que **sí está implementado** en el repositorio `entrega` y al marco de referencia **80 % / 20 %** descrito en el enunciado del proyecto (consultas repetitivas vs. casos que requieren humano), sin añadir funcionalidades futuras.
+## 1. Fortalezas de la solución propuesta
 
----
+La implementación de una arquitectura basada en LLM + RAG para EcoMarket presenta múltiples ventajas estratégicas y operativas:
 
-## Marco de referencia (80 % / 20 %)
+### 1.1 Reducción significativa del tiempo de respuesta
 
-- **~80 %:** consultas repetitivas (estado de pedido, devoluciones con política fija, etc.), abordables con **prompts + contexto del TOML** en los modos `order` y `return` de `main.py`.  
-- **~20 %:** situaciones que el enunciado asocia a **empatía humana y criterio**; en el código, el modo `escalate`, el `repl --mode escalate` y la heurística en `ecomarket/tickets.py` orientan a **escalamiento** y **tickets** en `data/tickets.json`.
-
-El porcentaje **no se calcula** en tiempo de ejecución: es una **guía de diseño**. Lo medible en el repo es la **separación de flujos** (pedido / devolución / escalamiento / REPL).
+El sistema permite automatizar la atención del 80% de las consultas repetitivas, reduciendo el tiempo de respuesta de 24 horas a segundos. Esto mejora directamente la experiencia del cliente y aumenta la eficiencia del servicio.
 
 ---
 
-## Fortalezas: ¿Qué hace bien *este* prototipo?
+### 1.2 Disponibilidad 24/7
 
-1. **Reducción del tiempo de respuesta**  
-   Tras configurar la API, las respuestas llegan en el orden de segundos frente a esperar a un agente.
-
-2. **Disponibilidad continua (mientras el servicio de API esté operativo)**  
-   Puedes ejecutar la CLI en cualquier momento; no depende de turnos humanos para generar la primera respuesta.
-
-3. **Manejo de consultas repetitivas típicas**  
-   Con el documento de pedidos y la política en `settings-final.toml`, los modos `order` y `return` **atan** la respuesta a ese texto mediante instrucciones explícitas en `ecomarket/messages.py`.
-
-4. **Escalamiento y seguimiento básico**  
-   `ecomarket/tickets.py` + `repl` permiten **registrar tickets** y **inyectar** el ID al modelo para que no invente otro número en la misma sesión.
-
-5. **Coherencia en conversaciones largas (REPL)**  
-   Se reenvía historial (`complete_chat_messages`) y, si hay ticket activo, un bloque fijo en el system (`append_repl_context`, `format_ticket_context`).
-
-6. **Reproducibilidad académica**  
-   Misma configuración de modelo y prompts vía TOML; secretos solo en `.env` (no versionado).
-
-7. **Pruebas sin llamar a la API**  
-   `--dry-run` en `order`, `return`, `escalate` y `demo` permite revisar el **system prompt** construido.
+A diferencia del servicio humano, el sistema basado en IA puede operar de manera continua sin interrupciones, lo que garantiza atención inmediata en cualquier momento.
 
 ---
 
-## Limitaciones: ¿Qué *no* hace o qué puede fallar?
+### 1.3 Mejora en la precisión de las respuestas
 
-1. **No cubre el “20 % humano” por sí solo**  
-   El software **no** sustituye juicio, negociación ni responsabilidad legal; solo **texto** y reglas programadas.
-
-2. **No hay base de datos real de EcoMarket**  
-   Pedidos y políticas son **texto de prueba** en el TOML. Si ese texto es incorrecto, el modelo **repetirá** el error de forma convincente.
-
-3. **Dependencia del contexto inyectado**  
-   Si falta un dato en el TOML (p. ej. un número de seguimiento), el comportamiento esperado es **no inventar**; aun así, el LLM puede **desviarse** si las instrucciones no se cumplen siempre al 100 %.
-
-4. **Heurística de tickets imperfecta**  
-   `needs_escalation_heuristic` usa palabras clave: puede **omitir** quejas no previstas o **activarse** en casos borde. Es un filtro simple, no un clasificador entrenado.
-
-5. **Coste y latencia**  
-   Cada turno del `repl` o cada `demo` consume tokens; contextos largos (tabla de pedidos + política + historial) aumentan coste y tiempo.
-
-6. **Alcance de la CLI**  
-   No es un chat web ni integración con correo/redes: es una **herramienta de línea de comandos** para demostración y prueba.
+Gracias al uso de RAG, el modelo no depende únicamente de su conocimiento previo, sino que consulta información actualizada en tiempo real desde las bases de datos de la empresa, lo que reduce errores y mejora la confiabilidad.
 
 ---
 
-## Riesgos éticos
+### 1.4 Escalabilidad del sistema
 
-### Alucinaciones
-
-- **Riesgo:** El modelo inventa un estado de pedido, una política o un número de ticket distinto del inyectado.  
-- **Mitigación en el repo:** Instrucciones en el TOML (“solo usa el documento…”, “no inventes…”) e inyección del ticket real en REPL. **No elimina** el riesgo por completo: hace falta revisión humana en producción y pruebas.
-
-### Sesgo
-
-- **Riesgo:** Tono o contenido que refleje sesgos del modelo base o del texto redactado en los prompts.  
-- **Mitigación:** Revisar los textos de `settings-final.toml`, muestrear conversaciones y ajustar instrucciones; el proveedor del LLM puede tener políticas de uso adicionales.
-
-### Privacidad de datos
-
-- **Riesgo:** Enviar a la API de OpenAI datos personales o sensibles en el mensaje del usuario o en el contexto.  
-- **Mitigación:** **Minimizar** lo que se pega en el chat de prueba; no usar datos reales de clientes en entregas académicas; leer la política de retención del proveedor; `.env` y `data/` no deben subirse a repositorios públicos con secretos o datos personales (el `.gitignore` ya ignora `.env` y `data/`).
-
-### Impacto laboral
-
-- **Riesgo:** Interpretar el prototipo como “reemplazo” del personal de soporte.  
-- **Enfoque alineado al enunciado:** Automatizar **primera línea** y **consultas repetitivas**; el **20 %** y los conflictos graves siguen requiriendo **personas**. El objetivo razonable es **apoyar** al agente (menos carga mecánica), no eliminar el rol sin planificación.
+La solución permite atender un alto volumen de consultas simultáneamente sin requerir un aumento proporcional del personal, lo que la hace altamente escalable frente al crecimiento del negocio.
 
 ---
 
-## Preguntas de la Fase 2 (respuestas directas)
+### 1.5 Optimización del recurso humano
 
-**Fortalezas:** respuesta rápida, uso 24/7 a nivel de API, buen encaje con consultas repetitivas si el contexto del TOML es correcto, registro de tickets y memoria en REPL, y modo `--dry-run` para auditoría de prompts.
-
-**Limitaciones:** sin BD real, riesgo de errores si el TOML está mal, heurística simple, coste por token, y la CLI no es el producto final multicanal.
-
-**Riesgos éticos:** alucinaciones, sesgo, privacidad al usar APIs de terceros, y uso responsable respecto al trabajo humano (complementar, no sustituir sin criterio).
+El sistema permite que los agentes humanos se enfoquen en el 20% de los casos complejos que requieren empatía, juicio o toma de decisiones, aumentando así la calidad del servicio en situaciones críticas.
 
 ---
 
-*Proyecto: IA Generativa — Unidad 2 — EcoMarket (`entrega`).*
+## 2. Limitaciones de la solución
+
+A pesar de sus beneficios, la solución presenta ciertas limitaciones que deben ser consideradas:
+
+### 2.1 Dependencia de la calidad de los datos
+
+El sistema RAG depende de la información disponible en las bases de datos. Si los datos son incompletos, desactualizados o incorrectos, las respuestas generadas también lo serán.
+
+---
+
+### 2.2 Dificultad en el manejo de casos complejos
+
+El modelo no está diseñado para gestionar adecuadamente situaciones que requieren:
+
+* Empatía emocional (quejas o reclamos)
+* Negociación o toma de decisiones humanas
+* Casos ambiguos o no estructurados
+
+---
+
+### 2.3 Latencia en el procesamiento
+
+El uso de RAG implica un proceso adicional de búsqueda y recuperación de información, lo que puede generar ligeros retrasos en comparación con un modelo generativo puro.
+
+---
+
+### 2.4 Complejidad de implementación
+
+La arquitectura RAG requiere la integración de múltiples componentes (LLM, base vectorial, retriever, bases de datos), lo que incrementa la complejidad técnica del sistema.
+
+---
+
+### 2.5 Costos de infraestructura
+
+El uso de modelos de lenguaje y sistemas de búsqueda vectorial puede implicar costos asociados a:
+
+* Procesamiento computacional
+* Almacenamiento
+* Uso de APIs
+
+---
+
+## 3. Riesgos éticos asociados a la implementación
+
+La adopción de esta tecnología implica una serie de riesgos éticos que deben ser gestionados de manera responsable:
+
+---
+
+### 3.1 Riesgo de alucinaciones
+
+Aunque RAG reduce este problema, el modelo aún puede generar información incorrecta si:
+
+* No encuentra datos relevantes
+* Interpreta mal la consulta
+* Recibe información ambigua
+
+Esto puede afectar la confianza del usuario y generar decisiones erróneas.
+
+---
+
+### 3.2 Sesgos en las respuestas
+
+El modelo puede reflejar sesgos presentes en:
+
+* Datos históricos de la empresa
+* Información mal estructurada
+* Configuración del sistema
+
+Esto podría resultar en respuestas injustas o discriminatorias hacia ciertos usuarios.
+
+---
+
+### 3.3 Privacidad y protección de datos
+
+El sistema manejará información sensible de los clientes, como:
+
+* Datos personales
+* Direcciones
+* Historial de compras
+
+Existe el riesgo de filtración, uso indebido o acceso no autorizado si no se implementan medidas de seguridad adecuadas.
+
+---
+
+### 3.4 Impacto en el empleo
+
+La automatización del servicio puede generar preocupación en los trabajadores humanos, ya que parte de sus funciones serán reemplazadas por el sistema.
+
+Sin embargo, el enfoque debe orientarse a:
+
+* Complementar el trabajo humano
+* Redistribuir funciones hacia tareas de mayor valor
+
+---
+
+### 3.5 Falta de transparencia
+
+El usuario puede no ser consciente de que está interactuando con un sistema de IA, lo que puede generar desconfianza o malentendidos.
+
+Es importante garantizar:
+
+* Claridad en la interacción
+* Explicabilidad de las respuestas
+* Uso responsable de la IA
+
+---
+
+## 4. Estrategias de mitigación
+
+Para reducir los riesgos identificados, se proponen las siguientes acciones:
+
+* Implementar validación de datos y control de calidad
+* Establecer mecanismos de supervisión humana (human-in-the-loop)
+* Aplicar políticas de seguridad y protección de datos
+* Monitorear continuamente el desempeño del sistema
+* Diseñar respuestas transparentes y explicables
+
+---
+
+## 5. Conclusión
+
+Si bien la solución basada en LLM + RAG ofrece importantes beneficios en términos de eficiencia, precisión y escalabilidad, también implica desafíos técnicos y éticos que deben ser gestionados cuidadosamente.
+
+Una implementación responsable, que combine tecnología y supervisión humana, permitirá maximizar el valor de la solución y minimizar sus riesgos, garantizando un servicio de atención al cliente más eficiente, confiable y ético.
